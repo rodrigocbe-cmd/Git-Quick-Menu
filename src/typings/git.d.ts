@@ -21,6 +21,7 @@ export interface API {
     readonly onDidOpenRepository: Event<Repository>;
     readonly onDidCloseRepository: Event<Repository>;
     getRepository(uri: Uri): Repository | null;
+    toGitUri(uri: Uri, ref: string): Uri;
 }
 
 export const enum RefType {
@@ -54,8 +55,35 @@ export interface Remote {
     readonly isReadOnly: boolean;
 }
 
+export const enum Status {
+    INDEX_MODIFIED,
+    INDEX_ADDED,
+    INDEX_DELETED,
+    INDEX_RENAMED,
+    INDEX_COPIED,
+
+    MODIFIED,
+    DELETED,
+    UNTRACKED,
+    IGNORED,
+    INTENT_TO_ADD,
+    INTENT_TO_RENAME,
+    TYPE_CHANGED,
+
+    ADDED_BY_US,
+    ADDED_BY_THEM,
+    DELETED_BY_US,
+    DELETED_BY_THEM,
+    BOTH_ADDED,
+    BOTH_DELETED,
+    BOTH_MODIFIED
+}
+
 export interface Change {
     readonly uri: Uri;
+    readonly originalUri: Uri;
+    readonly renameUri: Uri | undefined;
+    readonly status: Status;
 }
 
 export interface RepositoryState {
@@ -86,6 +114,7 @@ export interface LogOptions {
 
 export interface CommitOptions {
     all?: boolean | 'tracked';
+    amend?: boolean;
 }
 
 export interface FetchOptions {
@@ -119,6 +148,7 @@ export interface Repository {
     fetch(options?: FetchOptions): Promise<void>;
     pull(unshallow?: boolean): Promise<void>;
     push(remoteName?: string, branchName?: string, setUpstream?: boolean): Promise<void>;
+    add(paths: string[]): Promise<void>;
     commit(message: string, opts?: CommitOptions): Promise<void>;
     log(options?: LogOptions): Promise<Commit[]>;
 }

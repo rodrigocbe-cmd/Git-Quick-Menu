@@ -37,18 +37,23 @@ export class GitService implements vscode.Disposable {
         return this.api?.repositories ?? [];
     }
 
+    /** URI of `uri` at `ref` ("HEAD", "~" for the index), readable by the diff editor. */
+    toGitUri(uri: vscode.Uri, ref: string): vscode.Uri {
+        return this.api ? this.api.toGitUri(uri, ref) : uri;
+    }
+
     /**
      * Returns the repository to act on: the only one, the one containing the
      * active editor, or the one the user picks.
      */
     async pickRepository(): Promise<Repository | undefined> {
         if (!this.api) {
-            vscode.window.showErrorMessage('The built-in Git extension is disabled or unavailable.');
+            vscode.window.showErrorMessage(vscode.l10n.t('The built-in Git extension is disabled or unavailable.'));
             return undefined;
         }
         const repositories = this.api.repositories;
         if (repositories.length === 0) {
-            vscode.window.showInformationMessage('No Git repository found in the current workspace.');
+            vscode.window.showInformationMessage(vscode.l10n.t('No Git repository found in the current workspace.'));
             return undefined;
         }
         if (repositories.length === 1) {
@@ -65,7 +70,7 @@ export class GitService implements vscode.Disposable {
                 description: repository.rootUri.fsPath,
                 repository
             })),
-            { placeHolder: 'Select a repository' }
+            { placeHolder: vscode.l10n.t('Select a repository') }
         );
         return pick?.repository;
     }
@@ -97,11 +102,16 @@ export class GitService implements vscode.Disposable {
  * API does not expose (rename, merge, stash, show...). Resolves with stdout.
  */
 export function runGit(repository: Repository, args: string[]): Promise<string> {
+    return execGit(args, repository.rootUri.fsPath);
+}
+
+/** Runs a git command in `cwd` (or outside any repository, e.g. for `config --global`). Resolves with stdout. */
+export function execGit(args: string[], cwd?: string): Promise<string> {
     return new Promise((resolve, reject) => {
         execFile(
             gitPath(),
             args,
-            { cwd: repository.rootUri.fsPath, maxBuffer: 32 * 1024 * 1024, windowsHide: true },
+            { cwd, maxBuffer: 32 * 1024 * 1024, windowsHide: true },
             (error, stdout, stderr) => {
                 if (error) {
                     reject(new Error(stderr.trim() || error.message));
@@ -113,7 +123,8 @@ export function runGit(repository: Repository, args: string[]): Promise<string> 
     });
 }
 
-function gitPath(): string {
+/** The git executable: the `git.path` setting of the built-in Git extension, or `git` from PATH. */
+export function gitPath(): string {
     const configured = vscode.workspace.getConfiguration('git').get<string | string[] | null>('path');
     if (typeof configured === 'string' && configured) {
         return configured;

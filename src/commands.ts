@@ -1,7 +1,8 @@
-import * as os from 'os';
-import * as path from 'path';
+import { spawn } from 'child_process';
 import * as vscode from 'vscode';
 import { errorMessage, GitService, runGit } from './gitService';
+import { CommitPanel } from './commitPanel';
+import { SettingsPanel } from './settingsPanel';
 import { Ref, RefType, Repository } from './typings/git';
 
 type RepositoryCommand = (repository: Repository) => Promise<unknown>;
@@ -10,8 +11,8 @@ export function registerCommands(context: vscode.ExtensionContext, git: GitServi
     const repositoryCommands: Record<string, RepositoryCommand> = {
         'gitQuickMenu.newBranch': newBranch,
         'gitQuickMenu.checkout': checkout,
-        'gitQuickMenu.commit': commit,
-        'gitQuickMenu.commitAndPush': commitAndPush,
+        'gitQuickMenu.commit': async repository => CommitPanel.show(context, git, repository),
+        'gitQuickMenu.commitAndPush': async repository => CommitPanel.show(context, git, repository, true),
         'gitQuickMenu.pull': pull,
         'gitQuickMenu.push': push,
         'gitQuickMenu.fetch': fetch,
@@ -19,7 +20,14 @@ export function registerCommands(context: vscode.ExtensionContext, git: GitServi
         'gitQuickMenu.manageBranches': manageBranches,
         'gitQuickMenu.manageRemotes': manageRemotes,
         'gitQuickMenu.stash': stash,
-        'gitQuickMenu.log': log
+        'gitQuickMenu.log': log,
+        'gitQuickMenu.github': github,
+        'gitQuickMenu.openOnGitHub': repository => openGitHub(repository, 'tree'),
+        'gitQuickMenu.createPullRequest': repository => openGitHub(repository, 'compare'),
+        'gitQuickMenu.viewPullRequests': repository => openGitHub(repository, 'pulls'),
+        'gitQuickMenu.viewIssues': repository => openGitHub(repository, 'issues'),
+        'gitQuickMenu.openInFileExplorer': async repository => vscode.env.openExternal(repository.rootUri),
+        'gitQuickMenu.openInCommandPrompt': openInCommandPrompt
     };
 
     for (const [id, handler] of Object.entries(repositoryCommands)) {
@@ -34,10 +42,30 @@ export function registerCommands(context: vscode.ExtensionContext, git: GitServi
     }
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('gitQuickMenu.settings', () =>
-            guarded(() => settings(context, git))
-        )
+        vscode.commands.registerCommand('gitQuickMenu.settings', () => SettingsPanel.show(context, git)),
+        vscode.commands.registerCommand('gitQuickMenu.clone', () => vscode.commands.executeCommand('git.clone')),
+        vscode.commands.registerCommand('gitQuickMenu.openRepository', () =>
+            vscode.commands.executeCommand('git.openRepository')
+        ),
+        vscode.commands.registerCommand('gitQuickMenu.localRepositories', () => guarded(localRepositories)),
+        // Same as Visual Studio, which opens its "Git Changes" window.
+        vscode.commands.registerCommand('gitQuickMenu.commitOrStash', () => CommitPanel.show(context, git))
     );
+}
+
+/** Quick Pick counterpart of the "Local Repositories" submenu. */
+async function localRepositories(): Promise<void> {
+    const pick = await vscode.window.showQuickPick(
+        [
+            { label: `$(folder-opened) ${vscode.l10n.t('Open Local Repository...')}`, command: 'git.openRepository' },
+            { label: `$(history) ${vscode.l10n.t('Open Recent...')}`, command: 'workbench.action.openRecent' },
+            { label: `$(repo) ${vscode.l10n.t('Initialize Repository')}`, command: 'git.init' }
+        ],
+        { title: vscode.l10n.t('Local Repositories') }
+    );
+    if (pick) {
+        await vscode.commands.executeCommand(pick.command);
+    }
 }
 
 async function guarded(task: () => Promise<unknown>): Promise<void> {
@@ -56,16 +84,16 @@ function withProgress<T>(title: string, task: () => Promise<T>): Thenable<T> {
 
 async function newBranch(repository: Repository): Promise<void> {
     const base = await pickBranch(repository, {
-        title: 'New Branch (1/2): Based on',
-        placeHolder: 'Select the branch the new branch will be based on',
+        title: vscode.l10n.t('New Branch (1/2): Based on'),
+        placeHolder: vscode.l10n.t('Select the branch the new branch will be based on'),
         includeRemote: true
     });
     if (!base?.name) {
         return;
     }
     const name = await vscode.window.showInputBox({
-        title: 'New Branch (2/2): Name',
-        prompt: `Create a new branch from '${base.name}' and check it out`,
+        title: vscode.l10n.t('New Branch (2/2): Name'),
+        prompt: vscode.l10n.t("Create a new branch from '{0}' and check it out", base.name),
         placeHolder: 'feature/my-branch',
         validateInput: validateBranchName
     });
@@ -73,13 +101,13 @@ async function newBranch(repository: Repository): Promise<void> {
         return;
     }
     await repository.createBranch(name.trim(), true, base.name);
-    vscode.window.showInformationMessage(`Switched to new branch '${name.trim()}'.`);
+    vscode.window.showInformationMessage(vscode.l10n.t("Switched to new branch '{0}'.", name.trim()));
 }
 
 async function checkout(repository: Repository): Promise<void> {
     const ref = await pickBranch(repository, {
-        title: 'Checkout',
-        placeHolder: 'Select a branch to check out',
+        title: vscode.l10n.t('Checkout'),
+        placeHolder: vscode.l10n.t('Select a branch to check out'),
         includeRemote: true
     });
     if (ref) {
@@ -110,12 +138,12 @@ async function manageBranches(repository: Repository): Promise<void> {
     const refs = await listBranches(repository, true);
     const current = repository.state.HEAD?.name;
     const items: Item[] = [
-        { label: '$(add) New Branch...', create: true },
+        { label: `$(add) ${vscode.l10n.t('New Branch...')}`, create: true },
         ...branchItems(refs, current)
     ];
     const pick = await vscode.window.showQuickPick<Item>(items, {
-        title: 'Manage Branches',
-        placeHolder: 'Select a branch',
+        title: vscode.l10n.t('Manage Branches'),
+        placeHolder: vscode.l10n.t('Select a branch'),
         matchOnDescription: true
     });
     if (!pick) {
@@ -131,33 +159,43 @@ async function manageBranches(repository: Repository): Promise<void> {
 
     const actions: (vscode.QuickPickItem & { id: string })[] = [];
     if (!isCurrent) {
-        actions.push({ id: 'checkout', label: '$(git-branch) Checkout' });
+        actions.push({ id: 'checkout', label: `$(git-branch) ${vscode.l10n.t('Checkout')}` });
         if (current) {
-            actions.push({ id: 'merge', label: `$(git-merge) Merge into '${current}'` });
+            actions.push({ id: 'merge', label: `$(git-merge) ${vscode.l10n.t("Merge into '{0}'", current)}` });
         }
     }
     if (isLocal) {
-        actions.push({ id: 'rename', label: '$(edit) Rename...' });
+        actions.push({ id: 'rename', label: `$(edit) ${vscode.l10n.t('Rename...')}` });
         if (!isCurrent) {
-            actions.push({ id: 'delete', label: '$(trash) Delete' });
+            actions.push({ id: 'delete', label: `$(trash) ${vscode.l10n.t('Delete')}` });
         }
     }
-    actions.push({ id: 'copy', label: '$(copy) Copy Branch Name' });
+    actions.push({ id: 'copy', label: `$(copy) ${vscode.l10n.t('Copy Branch Name')}` });
 
-    const action = await vscode.window.showQuickPick(actions, { title: `Branch '${name}'` });
+    const action = await vscode.window.showQuickPick(actions, { title: vscode.l10n.t("Branch '{0}'", name) });
     switch (action?.id) {
         case 'checkout':
             return checkoutRef(repository, ref);
         case 'merge':
-            await withProgress(`Merging '${name}' into '${current}'...`, () =>
-                runGit(repository, ['merge', name])
+            const commitAfterMerge = vscode.workspace
+                .getConfiguration('gitQuickMenu')
+                .get<boolean>('commitAfterMerge', true);
+            await withProgress(vscode.l10n.t("Merging '{0}' into '{1}'...", name, current!), () =>
+                runGit(repository, commitAfterMerge ? ['merge', name] : ['merge', '--no-commit', '--no-ff', name])
             );
             await repository.status();
-            vscode.window.showInformationMessage(`Merged '${name}' into '${current}'.`);
+            if (commitAfterMerge) {
+                vscode.window.showInformationMessage(vscode.l10n.t("Merged '{0}' into '{1}'.", name, current!));
+            } else {
+                vscode.window.showInformationMessage(
+                    vscode.l10n.t("Merged '{0}' into '{1}' without committing. Review the changes and commit them.", name, current!)
+                );
+                await vscode.commands.executeCommand('workbench.view.scm');
+            }
             return;
         case 'rename': {
             const newName = await vscode.window.showInputBox({
-                title: `Rename Branch '${name}'`,
+                title: vscode.l10n.t("Rename Branch '{0}'", name),
                 value: name,
                 validateInput: validateBranchName
             });
@@ -176,23 +214,25 @@ async function manageBranches(repository: Repository): Promise<void> {
 }
 
 async function deleteBranch(repository: Repository, name: string): Promise<void> {
+    const deleteLabel = vscode.l10n.t('Delete');
     const confirm = await vscode.window.showWarningMessage(
-        `Delete branch '${name}'?`,
+        vscode.l10n.t("Delete branch '{0}'?", name),
         { modal: true },
-        'Delete'
+        deleteLabel
     );
-    if (confirm !== 'Delete') {
+    if (confirm !== deleteLabel) {
         return;
     }
     try {
         await repository.deleteBranch(name, false);
     } catch (error) {
+        const forceLabel = vscode.l10n.t('Force Delete');
         const force = await vscode.window.showWarningMessage(
-            `Branch '${name}' could not be deleted: ${errorMessage(error)}`,
+            vscode.l10n.t("Branch '{0}' could not be deleted: {1}", name, errorMessage(error)),
             { modal: true },
-            'Force Delete'
+            forceLabel
         );
-        if (force === 'Force Delete') {
+        if (force === forceLabel) {
             await repository.deleteBranch(name, true);
         }
     }
@@ -200,94 +240,47 @@ async function deleteBranch(repository: Repository, name: string): Promise<void>
 
 // ---------------------------------------------------------------- commit / sync
 
-/** Commits the staged changes (or all changes, after confirmation). Returns true on success. */
-async function commit(repository: Repository): Promise<boolean> {
-    await repository.status();
-    const { indexChanges, workingTreeChanges, mergeChanges } = repository.state;
-    if (indexChanges.length === 0 && workingTreeChanges.length === 0 && mergeChanges.length === 0) {
-        vscode.window.showInformationMessage('There are no changes to commit.');
-        return false;
-    }
-
-    let commitAll = false;
-    if (indexChanges.length === 0) {
-        const choice = await vscode.window.showWarningMessage(
-            'There are no staged changes. Stage all changes and commit them?',
-            { modal: true },
-            'Stage All & Commit'
-        );
-        if (!choice) {
-            return false;
-        }
-        commitAll = true;
-    }
-
-    const message = await vscode.window.showInputBox({
-        title: 'Commit',
-        prompt: commitAll
-            ? `Commit all ${workingTreeChanges.length} changed file(s)`
-            : `Commit ${indexChanges.length} staged file(s)`,
-        placeHolder: 'Commit message',
-        value: repository.inputBox.value,
-        validateInput: value => (value.trim() ? undefined : 'The commit message cannot be empty.')
-    });
-    if (!message) {
-        return false;
-    }
-
-    await repository.commit(message, commitAll ? { all: true } : undefined);
-    repository.inputBox.value = '';
-    vscode.window.setStatusBarMessage(`$(check) Committed: ${message.split('\n')[0]}`, 5000);
-    return true;
-}
-
-async function commitAndPush(repository: Repository): Promise<void> {
-    if (await commit(repository)) {
-        await push(repository);
-    }
-}
-
 async function pull(repository: Repository): Promise<void> {
     const head = repository.state.HEAD;
     if (!head?.upstream) {
         vscode.window.showWarningMessage(
             head?.name
-                ? `Branch '${head.name}' has no upstream branch. Push it first to publish it.`
-                : 'Cannot pull: HEAD is detached.'
+                ? vscode.l10n.t("Branch '{0}' has no upstream branch. Push it first to publish it.", head.name)
+                : vscode.l10n.t('Cannot pull: HEAD is detached.')
         );
         return;
     }
-    await withProgress(`Pulling '${head.name}'...`, () => repository.pull());
-    vscode.window.setStatusBarMessage('$(check) Pull complete', 5000);
+    await withProgress(vscode.l10n.t("Pulling '{0}'...", head.name!), () => repository.pull());
+    vscode.window.setStatusBarMessage(`$(check) ${vscode.l10n.t('Pull complete')}`, 5000);
 }
 
 async function push(repository: Repository): Promise<void> {
     const head = repository.state.HEAD;
     if (!head?.name) {
-        vscode.window.showWarningMessage('Cannot push: HEAD is detached.');
+        vscode.window.showWarningMessage(vscode.l10n.t('Cannot push: HEAD is detached.'));
         return;
     }
     if (head.upstream) {
-        await withProgress(`Pushing '${head.name}'...`, () => repository.push());
+        await withProgress(vscode.l10n.t("Pushing '{0}'...", head.name), () => repository.push());
     } else {
-        const remote = await pickRemote(repository, `Select a remote to publish '${head.name}' to`);
+        const remote = await pickRemote(repository, vscode.l10n.t("Select a remote to publish '{0}' to", head.name));
         if (!remote) {
             return;
         }
-        await withProgress(`Publishing '${head.name}' to '${remote}'...`, () =>
+        await withProgress(vscode.l10n.t("Publishing '{0}' to '{1}'...", head.name, remote), () =>
             repository.push(remote, head.name, true)
         );
     }
-    vscode.window.setStatusBarMessage('$(check) Push complete', 5000);
+    vscode.window.setStatusBarMessage(`$(check) ${vscode.l10n.t('Push complete')}`, 5000);
 }
 
 async function fetch(repository: Repository): Promise<void> {
     if (repository.state.remotes.length === 0) {
-        vscode.window.showWarningMessage('This repository has no remotes to fetch from.');
+        vscode.window.showWarningMessage(vscode.l10n.t('This repository has no remotes to fetch from.'));
         return;
     }
-    await withProgress('Fetching...', () => repository.fetch({ all: true }));
-    vscode.window.setStatusBarMessage('$(check) Fetch complete', 5000);
+    await withProgress(vscode.l10n.t('Fetching...'), () => repository.fetch({ all: true }));
+    vscode.window.setStatusBarMessage(`$(check) ${vscode.l10n.t('Fetch complete')}`, 5000);
 }
 
 async function sync(repository: Repository): Promise<void> {
@@ -302,7 +295,7 @@ async function sync(repository: Repository): Promise<void> {
 async function manageRemotes(repository: Repository): Promise<void> {
     type Item = vscode.QuickPickItem & { remote?: string };
     const items: Item[] = [
-        { label: '$(add) Add Remote...' },
+        { label: `$(add) ${vscode.l10n.t('Add Remote...')}` },
         ...repository.state.remotes.map(remote => ({
             label: `$(remote) ${remote.name}`,
             description: remote.fetchUrl ?? remote.pushUrl,
@@ -310,8 +303,8 @@ async function manageRemotes(repository: Repository): Promise<void> {
         }))
     ];
     const pick = await vscode.window.showQuickPick<Item>(items, {
-        title: 'Manage Remotes',
-        placeHolder: 'Select a remote'
+        title: vscode.l10n.t('Manage Remotes'),
+        placeHolder: vscode.l10n.t('Select a remote')
     });
     if (!pick) {
         return;
@@ -324,20 +317,20 @@ async function manageRemotes(repository: Repository): Promise<void> {
     const url = pick.description ?? '';
     const action = await vscode.window.showQuickPick(
         [
-            { id: 'fetch', label: '$(cloud-download) Fetch' },
-            { id: 'url', label: '$(link) Change URL...' },
-            { id: 'rename', label: '$(edit) Rename...' },
-            { id: 'copy', label: '$(copy) Copy URL' },
-            { id: 'remove', label: '$(trash) Remove' }
+            { id: 'fetch', label: `$(cloud-download) ${vscode.l10n.t('Fetch')}` },
+            { id: 'url', label: `$(link) ${vscode.l10n.t('Change URL...')}` },
+            { id: 'rename', label: `$(edit) ${vscode.l10n.t('Rename...')}` },
+            { id: 'copy', label: `$(copy) ${vscode.l10n.t('Copy URL')}` },
+            { id: 'remove', label: `$(trash) ${vscode.l10n.t('Remove')}` }
         ],
-        { title: `Remote '${name}'` }
+        { title: vscode.l10n.t("Remote '{0}'", name) }
     );
     switch (action?.id) {
         case 'fetch':
-            await withProgress(`Fetching '${name}'...`, () => repository.fetch({ remote: name }));
+            await withProgress(vscode.l10n.t("Fetching '{0}'...", name), () => repository.fetch({ remote: name }));
             return;
         case 'url': {
-            const newUrl = await vscode.window.showInputBox({ title: `URL of '${name}'`, value: url });
+            const newUrl = await vscode.window.showInputBox({ title: vscode.l10n.t("URL of '{0}'", name), value: url });
             if (newUrl && newUrl.trim() !== url) {
                 await runGit(repository, ['remote', 'set-url', name, newUrl.trim()]);
                 await repository.status();
@@ -346,7 +339,7 @@ async function manageRemotes(repository: Repository): Promise<void> {
         }
         case 'rename': {
             const newName = await vscode.window.showInputBox({
-                title: `Rename Remote '${name}'`,
+                title: vscode.l10n.t("Rename Remote '{0}'", name),
                 value: name,
                 validateInput: validateRemoteName
             });
@@ -360,12 +353,13 @@ async function manageRemotes(repository: Repository): Promise<void> {
             await vscode.env.clipboard.writeText(url);
             return;
         case 'remove': {
+            const removeLabel = vscode.l10n.t('Remove');
             const confirm = await vscode.window.showWarningMessage(
-                `Remove remote '${name}'?`,
+                vscode.l10n.t("Remove remote '{0}'?", name),
                 { modal: true },
-                'Remove'
+                removeLabel
             );
-            if (confirm === 'Remove') {
+            if (confirm === removeLabel) {
                 await repository.removeRemote(name);
             }
             return;
@@ -375,7 +369,7 @@ async function manageRemotes(repository: Repository): Promise<void> {
 
 async function addRemote(repository: Repository): Promise<void> {
     const name = await vscode.window.showInputBox({
-        title: 'Add Remote (1/2): Name',
+        title: vscode.l10n.t('Add Remote (1/2): Name'),
         value: repository.state.remotes.length === 0 ? 'origin' : '',
         validateInput: validateRemoteName
     });
@@ -383,15 +377,15 @@ async function addRemote(repository: Repository): Promise<void> {
         return;
     }
     const url = await vscode.window.showInputBox({
-        title: 'Add Remote (2/2): URL',
+        title: vscode.l10n.t('Add Remote (2/2): URL'),
         placeHolder: 'https://github.com/user/repo.git',
-        validateInput: value => (value.trim() ? undefined : 'The URL cannot be empty.')
+        validateInput: value => (value.trim() ? undefined : vscode.l10n.t('The URL cannot be empty.'))
     });
     if (!url) {
         return;
     }
     await repository.addRemote(name.trim(), url.trim());
-    vscode.window.showInformationMessage(`Remote '${name.trim()}' added.`);
+    vscode.window.showInformationMessage(vscode.l10n.t("Remote '{0}' added.", name.trim()));
 }
 
 // ---------------------------------------------------------------- stash
@@ -399,14 +393,14 @@ async function addRemote(repository: Repository): Promise<void> {
 async function stash(repository: Repository): Promise<void> {
     const action = await vscode.window.showQuickPick(
         [
-            { id: 'push', label: '$(archive) Stash Changes...' },
-            { id: 'pushUntracked', label: '$(archive) Stash All (Include Untracked)...' },
-            { id: 'pop', label: '$(inbox) Pop Stash...' },
-            { id: 'apply', label: '$(inbox) Apply Stash...' },
-            { id: 'show', label: '$(eye) View Stash...' },
-            { id: 'drop', label: '$(trash) Drop Stash...' }
+            { id: 'push', label: `$(archive) ${vscode.l10n.t('Stash Changes...')}` },
+            { id: 'pushUntracked', label: `$(archive) ${vscode.l10n.t('Stash All (Include Untracked)...')}` },
+            { id: 'pop', label: `$(inbox) ${vscode.l10n.t('Pop Stash...')}` },
+            { id: 'apply', label: `$(inbox) ${vscode.l10n.t('Apply Stash...')}` },
+            { id: 'show', label: `$(eye) ${vscode.l10n.t('View Stash...')}` },
+            { id: 'drop', label: `$(trash) ${vscode.l10n.t('Drop Stash...')}` }
         ],
-        { title: 'Stash' }
+        { title: vscode.l10n.t('Stash') }
     );
     if (!action) {
         return;
@@ -414,8 +408,8 @@ async function stash(repository: Repository): Promise<void> {
 
     if (action.id === 'push' || action.id === 'pushUntracked') {
         const message = await vscode.window.showInputBox({
-            title: 'Stash',
-            placeHolder: 'Stash message (optional)'
+            title: vscode.l10n.t('Stash'),
+            placeHolder: vscode.l10n.t('Stash message (optional)')
         });
         if (message === undefined) {
             return;
@@ -441,12 +435,13 @@ async function stash(repository: Repository): Promise<void> {
         return;
     }
     if (action.id === 'drop') {
+        const dropLabel = vscode.l10n.t('Drop');
         const confirm = await vscode.window.showWarningMessage(
-            `Drop ${ref}? This cannot be undone.`,
+            vscode.l10n.t('Drop {0}? This cannot be undone.', ref),
             { modal: true },
-            'Drop'
+            dropLabel
         );
-        if (confirm !== 'Drop') {
+        if (confirm !== dropLabel) {
             return;
         }
     }
@@ -464,11 +459,11 @@ async function pickStash(repository: Repository): Promise<string | undefined> {
             return { label: ref, description: subject, detail: date };
         });
     if (items.length === 0) {
-        vscode.window.showInformationMessage('There are no stashes.');
+        vscode.window.showInformationMessage(vscode.l10n.t('There are no stashes.'));
         return undefined;
     }
     const pick = await vscode.window.showQuickPick(items, {
-        title: 'Select a Stash',
+        title: vscode.l10n.t('Select a Stash'),
         matchOnDescription: true
     });
     return pick?.label;
@@ -480,7 +475,7 @@ async function log(repository: Repository): Promise<void> {
     const maxEntries = vscode.workspace.getConfiguration('gitQuickMenu').get<number>('logMaxEntries', 100);
     const commits = await repository.log({ maxEntries });
     if (commits.length === 0) {
-        vscode.window.showInformationMessage('This repository has no commits yet.');
+        vscode.window.showInformationMessage(vscode.l10n.t('This repository has no commits yet.'));
         return;
     }
     const pick = await vscode.window.showQuickPick(
@@ -491,8 +486,8 @@ async function log(repository: Repository): Promise<void> {
             hash: c.hash
         })),
         {
-            title: `Git Log: ${repository.state.HEAD?.name ?? 'HEAD'}`,
-            placeHolder: 'Select a commit to view its changes',
+            title: vscode.l10n.t('Git Log: {0}', repository.state.HEAD?.name ?? 'HEAD'),
+            placeHolder: vscode.l10n.t('Select a commit to view its changes'),
             matchOnDescription: true,
             matchOnDetail: true
         }
@@ -502,43 +497,72 @@ async function log(repository: Repository): Promise<void> {
     }
 }
 
-// ---------------------------------------------------------------- settings
+// ---------------------------------------------------------------- GitHub
 
-async function settings(context: vscode.ExtensionContext, git: GitService): Promise<void> {
-    const pick = await vscode.window.showQuickPick(
+type GitHubPage = 'tree' | 'compare' | 'pulls' | 'issues';
+
+/** Quick Pick counterpart of the "GitHub" submenu. */
+async function github(repository: Repository): Promise<void> {
+    const pick = await vscode.window.showQuickPick<vscode.QuickPickItem & { page: GitHubPage }>(
         [
-            { id: 'extension', label: '$(settings-gear) Git Quick Menu Settings' },
-            { id: 'builtin', label: '$(settings-gear) Built-in Git Settings' },
-            { id: 'global', label: '$(file) Global Git Config', description: '~/.gitconfig' },
-            { id: 'repository', label: '$(file) Repository Git Config', description: '.git/config' }
+            { label: `$(github) ${vscode.l10n.t('Open on GitHub')}`, page: 'tree' },
+            { label: `$(git-pull-request-create) ${vscode.l10n.t('Create Pull Request')}`, page: 'compare' },
+            { label: `$(git-pull-request) ${vscode.l10n.t('View Pull Requests')}`, page: 'pulls' },
+            { label: `$(issues) ${vscode.l10n.t('View Issues')}`, page: 'issues' }
         ],
-        { title: 'Git Settings' }
+        { title: 'GitHub' }
     );
-    switch (pick?.id) {
-        case 'extension':
-            await vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${context.extension.id}`);
-            return;
-        case 'builtin':
-            await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:vscode.git');
-            return;
-        case 'global': {
-            const home = process.env.HOME || os.homedir();
-            await openFile(vscode.Uri.file(path.join(home, '.gitconfig')));
-            return;
-        }
-        case 'repository': {
-            const repository = await git.pickRepository();
-            if (repository) {
-                const configPath = (await runGit(repository, ['rev-parse', '--git-path', 'config'])).trim();
-                await openFile(
-                    path.isAbsolute(configPath)
-                        ? vscode.Uri.file(configPath)
-                        : vscode.Uri.joinPath(repository.rootUri, configPath)
-                );
-            }
-            return;
-        }
+    if (pick) {
+        await openGitHub(repository, pick.page);
     }
+}
+
+async function openGitHub(repository: Repository, page: GitHubPage): Promise<void> {
+    const remotes = repository.state.remotes
+        .map(remote => ({ name: remote.name, url: gitHubUrl(remote.fetchUrl ?? remote.pushUrl) }))
+        .filter((remote): remote is { name: string; url: string } => remote.url !== undefined);
+    if (remotes.length === 0) {
+        vscode.window.showWarningMessage(vscode.l10n.t('This repository has no GitHub remote.'));
+        return;
+    }
+    const upstreamRemote = repository.state.HEAD?.upstream?.remote;
+    const remote =
+        remotes.find(r => r.name === upstreamRemote) ?? remotes.find(r => r.name === 'origin') ?? remotes[0];
+    const branch = encodeURIComponent(repository.state.HEAD?.name ?? '').replace(/%2F/g, '/');
+    if (page === 'compare' && !branch) {
+        vscode.window.showWarningMessage(vscode.l10n.t('Check out a branch to create a pull request.'));
+        return;
+    }
+    const suffix =
+        page === 'tree' ? (branch ? `/tree/${branch}` : '') :
+        page === 'compare' ? `/compare/${branch}?expand=1` :
+        `/${page}`;
+    await vscode.env.openExternal(vscode.Uri.parse(remote.url + suffix));
+}
+
+/** Converts an HTTPS or SSH GitHub remote URL to the repository's web URL. */
+function gitHubUrl(remoteUrl: string | undefined): string | undefined {
+    const match = /github\.com[:/]+([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(remoteUrl ?? '');
+    return match ? `https://github.com/${match[1]}/${match[2]}` : undefined;
+}
+
+// ---------------------------------------------------------------- open
+
+/** Opens an external terminal in the repository root (the one set in `terminal.external.*`). */
+async function openInCommandPrompt(repository: Repository): Promise<void> {
+    const cwd = repository.rootUri.fsPath;
+    const external = vscode.workspace.getConfiguration('terminal.external');
+    let child;
+    if (process.platform === 'win32') {
+        const exec = external.get<string>('windowsExec') || 'cmd.exe';
+        child = spawn('cmd.exe', ['/c', 'start', '""', exec], { cwd, detached: true, windowsVerbatimArguments: true });
+    } else if (process.platform === 'darwin') {
+        child = spawn('open', ['-a', external.get<string>('osxExec') || 'Terminal.app', cwd], { detached: true });
+    } else {
+        child = spawn(external.get<string>('linuxExec') || 'x-terminal-emulator', [], { cwd, detached: true });
+    }
+    child.on('error', error => vscode.window.showErrorMessage(`Git: ${errorMessage(error)}`));
+    child.unref();
 }
 
 // ---------------------------------------------------------------- helpers
@@ -553,7 +577,7 @@ function branchItems(refs: Ref[], current: string | undefined): (vscode.QuickPic
     const remote = refs.filter(ref => ref.type === RefType.RemoteHead);
     const toItem = (ref: Ref, icon: string) => ({
         label: `$(${icon}) ${ref.name}`,
-        description: [ref.name === current && ref.type === RefType.Head ? 'current' : '', ref.commit?.slice(0, 7)]
+        description: [ref.name === current && ref.type === RefType.Head ? vscode.l10n.t('current') : '', ref.commit?.slice(0, 7)]
             .filter(Boolean)
             .join(' · '),
         ref
@@ -562,11 +586,11 @@ function branchItems(refs: Ref[], current: string | undefined): (vscode.QuickPic
     local.sort((a, b) => Number(b.name === current) - Number(a.name === current));
     const items: (vscode.QuickPickItem & { ref?: Ref })[] = [];
     if (local.length) {
-        items.push({ label: 'Local branches', kind: vscode.QuickPickItemKind.Separator });
+        items.push({ label: vscode.l10n.t('Local branches'), kind: vscode.QuickPickItemKind.Separator });
         items.push(...local.map(ref => toItem(ref, 'git-branch')));
     }
     if (remote.length) {
-        items.push({ label: 'Remote branches', kind: vscode.QuickPickItemKind.Separator });
+        items.push({ label: vscode.l10n.t('Remote branches'), kind: vscode.QuickPickItemKind.Separator });
         items.push(...remote.map(ref => toItem(ref, 'cloud')));
     }
     return items;
@@ -589,8 +613,8 @@ async function pickRemote(repository: Repository, placeHolder: string): Promise<
     const remotes = repository.state.remotes;
     if (remotes.length === 0) {
         const choice = await vscode.window.showWarningMessage(
-            'This repository has no remotes.',
-            'Add Remote...'
+            vscode.l10n.t('This repository has no remotes.'),
+            vscode.l10n.t('Add Remote...')
         );
         if (choice) {
             await addRemote(repository);
@@ -612,18 +636,10 @@ async function showText(content: string, language = 'diff'): Promise<void> {
     await vscode.window.showTextDocument(document, { preview: true });
 }
 
-async function openFile(uri: vscode.Uri): Promise<void> {
-    try {
-        await vscode.window.showTextDocument(uri);
-    } catch {
-        vscode.window.showWarningMessage(`File not found: ${uri.fsPath}`);
-    }
-}
-
 export function validateBranchName(value: string): string | undefined {
     const name = value.trim();
     if (!name) {
-        return 'The branch name cannot be empty.';
+        return vscode.l10n.t('The branch name cannot be empty.');
     }
     const invalid =
         /[\s~^:?*[\\\x00-\x1f\x7f]/.test(name) ||
@@ -637,13 +653,13 @@ export function validateBranchName(value: string): string | undefined {
         name.endsWith('.') ||
         name.endsWith('.lock') ||
         name === '@';
-    return invalid ? `'${name}' is not a valid branch name.` : undefined;
+    return invalid ? vscode.l10n.t("'{0}' is not a valid branch name.", name) : undefined;
 }
 
 function validateRemoteName(value: string): string | undefined {
     const name = value.trim();
     if (!name) {
-        return 'The remote name cannot be empty.';
+        return vscode.l10n.t('The remote name cannot be empty.');
     }
-    return /^[\w.-]+$/.test(name) ? undefined : `'${name}' is not a valid remote name.`;
+    return /^[\w.-]+$/.test(name) ? undefined : vscode.l10n.t("'{0}' is not a valid remote name.", name);
 }

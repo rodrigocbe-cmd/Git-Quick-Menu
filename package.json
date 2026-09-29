@@ -1,10 +1,14 @@
 {
   "name": "git-quick-menu",
-  "displayName": "Git Quick Menu",
-  "description": "Adds a Visual Studio-style Git menu to VS Code (status bar, editor title and Source Control view).",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "0.1.0",
   "publisher": "rodrigo-bechara",
+  "author": {
+    "name": "Rodrigo Bechara"
+  },
   "license": "MIT",
+  "icon": "images/icon.png",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -31,106 +35,195 @@
     "commands": [
       {
         "command": "gitQuickMenu.showMenu",
-        "title": "Show Git Menu",
-        "category": "Git Menu",
+        "title": "%command.showMenu%",
+        "category": "%category%",
         "icon": "$(source-control)"
       },
       {
         "command": "gitQuickMenu.newBranch",
-        "title": "New Branch...",
-        "category": "Git Menu",
+        "title": "%command.newBranch%",
+        "category": "%category%",
         "icon": "$(git-branch-create)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.checkout",
-        "title": "Checkout...",
-        "category": "Git Menu",
+        "title": "%command.checkout%",
+        "category": "%category%",
         "icon": "$(git-branch)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.commit",
-        "title": "Commit",
-        "category": "Git Menu",
+        "title": "%command.commit%",
+        "category": "%category%",
         "icon": "$(check)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.commitAndPush",
-        "title": "Commit & Push",
-        "category": "Git Menu",
+        "title": "%command.commitAndPush%",
+        "category": "%category%",
         "icon": "$(check-all)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.pull",
-        "title": "Pull",
-        "category": "Git Menu",
+        "title": "%command.pull%",
+        "category": "%category%",
         "icon": "$(arrow-down)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.push",
-        "title": "Push",
-        "category": "Git Menu",
+        "title": "%command.push%",
+        "category": "%category%",
         "icon": "$(arrow-up)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.fetch",
-        "title": "Fetch",
-        "category": "Git Menu",
-        "icon": "$(cloud-download)",
+        "title": "%command.fetch%",
+        "category": "%category%",
+        "icon": "$(repo-fetch)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.sync",
-        "title": "Sync (Pull then Push)",
-        "category": "Git Menu",
+        "title": "%command.sync%",
+        "category": "%category%",
         "icon": "$(sync)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.manageBranches",
-        "title": "Manage Branches...",
-        "category": "Git Menu",
-        "icon": "$(list-tree)",
+        "title": "%command.manageBranches%",
+        "category": "%category%",
+        "icon": "$(git-branch)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.manageRemotes",
-        "title": "Manage Remotes...",
-        "category": "Git Menu",
-        "icon": "$(remote)",
+        "title": "%command.manageRemotes%",
+        "category": "%category%",
+        "icon": "$(settings-gear)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.stash",
-        "title": "Stash...",
-        "category": "Git Menu",
+        "title": "%command.stash%",
+        "category": "%category%",
         "icon": "$(archive)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.log",
-        "title": "Git Log",
-        "category": "Git Menu",
+        "title": "%command.log%",
+        "category": "%category%",
         "icon": "$(history)",
         "enablement": "gitQuickMenu.hasRepository"
       },
       {
         "command": "gitQuickMenu.settings",
-        "title": "Git Settings...",
-        "category": "Git Menu",
+        "title": "%command.settings%",
+        "category": "%category%",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "gitQuickMenu.clone",
+        "category": "%category%",
+        "title": "%command.clone%",
+        "icon": "$(repo-clone)"
+      },
+      {
+        "command": "gitQuickMenu.localRepositories",
+        "category": "%category%",
+        "title": "%command.localRepositories%"
+      },
+      {
+        "command": "gitQuickMenu.openRepository",
+        "category": "%category%",
+        "title": "%command.openRepository%",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "gitQuickMenu.commitOrStash",
+        "category": "%category%",
+        "title": "%command.commitOrStash%",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.github",
+        "category": "%category%",
+        "title": "%command.github%",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.openOnGitHub",
+        "category": "%category%",
+        "title": "%command.openOnGitHub%",
+        "icon": "$(github)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.createPullRequest",
+        "category": "%category%",
+        "title": "%command.createPullRequest%",
+        "icon": "$(git-pull-request-create)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.viewPullRequests",
+        "category": "%category%",
+        "title": "%command.viewPullRequests%",
+        "icon": "$(git-pull-request)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.viewIssues",
+        "category": "%category%",
+        "title": "%command.viewIssues%",
+        "icon": "$(issues)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.openInFileExplorer",
+        "category": "%category%",
+        "title": "%command.openInFileExplorer%",
+        "icon": "$(folder-opened)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.openInCommandPrompt",
+        "category": "%category%",
+        "title": "%command.openInCommandPrompt%",
+        "icon": "$(terminal-cmd)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.enableMainMenuBar",
+        "title": "%command.enableMainMenuBar%",
+        "category": "%category%"
+      },
+      {
+        "command": "gitQuickMenu.disableMainMenuBar",
+        "title": "%command.disableMainMenuBar%",
+        "category": "%category%"
       }
     ],
     "submenus": [
       {
         "id": "gitQuickMenu.menu",
-        "label": "Git",
+        "label": "%submenu.menu%",
         "icon": "$(source-control)"
+      },
+      {
+        "id": "gitQuickMenu.localRepositoriesMenu",
+        "label": "%submenu.localRepositoriesMenu%"
+      },
+      {
+        "id": "gitQuickMenu.githubMenu",
+        "label": "%submenu.githubMenu%"
       }
     ],
     "menus": {
@@ -149,19 +242,36 @@
         }
       ],
       "gitQuickMenu.menu": [
-        { "command": "gitQuickMenu.newBranch", "group": "1_branch@1" },
-        { "command": "gitQuickMenu.checkout", "group": "1_branch@2" },
-        { "command": "gitQuickMenu.commit", "group": "2_commit@1" },
-        { "command": "gitQuickMenu.commitAndPush", "group": "2_commit@2" },
-        { "command": "gitQuickMenu.pull", "group": "3_remote@1" },
-        { "command": "gitQuickMenu.push", "group": "3_remote@2" },
-        { "command": "gitQuickMenu.fetch", "group": "3_remote@3" },
+        { "command": "gitQuickMenu.clone", "group": "1_repository@1" },
+        { "submenu": "gitQuickMenu.localRepositoriesMenu", "group": "1_repository@2" },
+        { "command": "gitQuickMenu.commitOrStash", "group": "2_commit@1" },
+        { "command": "gitQuickMenu.fetch", "group": "3_remote@1" },
+        { "command": "gitQuickMenu.pull", "group": "3_remote@2" },
+        { "command": "gitQuickMenu.push", "group": "3_remote@3" },
         { "command": "gitQuickMenu.sync", "group": "3_remote@4" },
-        { "command": "gitQuickMenu.manageBranches", "group": "4_manage@1" },
-        { "command": "gitQuickMenu.manageRemotes", "group": "4_manage@2" },
-        { "command": "gitQuickMenu.stash", "group": "4_manage@3" },
-        { "command": "gitQuickMenu.log", "group": "4_manage@4" },
-        { "command": "gitQuickMenu.settings", "group": "5_settings@1" }
+        { "command": "gitQuickMenu.newBranch", "group": "4_branch@1" },
+        { "command": "gitQuickMenu.log", "group": "4_branch@2" },
+        { "command": "gitQuickMenu.manageBranches", "group": "4_branch@3" },
+        { "submenu": "gitQuickMenu.githubMenu", "group": "5_github@1" },
+        { "command": "gitQuickMenu.openInFileExplorer", "group": "6_open@1" },
+        { "command": "gitQuickMenu.openInCommandPrompt", "group": "6_open@2" },
+        { "command": "gitQuickMenu.manageRemotes", "group": "7_settings@1" },
+        { "command": "gitQuickMenu.settings", "group": "7_settings@2" }
+      ],
+      "gitQuickMenu.localRepositoriesMenu": [
+        { "command": "gitQuickMenu.openRepository", "group": "1_open@1" },
+        { "command": "workbench.action.openRecent", "group": "1_open@2" },
+        { "command": "git.init", "group": "2_init@1" }
+      ],
+      "gitQuickMenu.githubMenu": [
+        { "command": "gitQuickMenu.openOnGitHub", "group": "1_github@1" },
+        { "command": "gitQuickMenu.createPullRequest", "group": "1_github@2" },
+        { "command": "gitQuickMenu.viewPullRequests", "group": "1_github@3" },
+        { "command": "gitQuickMenu.viewIssues", "group": "1_github@4" }
+      ],
+      "commandPalette": [
+        { "command": "gitQuickMenu.localRepositories", "when": "false" },
+        { "command": "gitQuickMenu.github", "when": "false" }
       ]
     },
     "keybindings": [
@@ -172,42 +282,55 @@
       }
     ],
     "configuration": {
-      "title": "Git Quick Menu",
+      "title": "%config.title%",
       "properties": {
+        "gitQuickMenu.mainMenuBar": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "markdownDescription": "%config.mainMenuBar%"
+        },
         "gitQuickMenu.showStatusBarItem": {
           "type": "boolean",
           "default": true,
-          "description": "Show a \"Git\" item in the status bar that opens the Git menu."
+          "description": "%config.showStatusBarItem%"
         },
         "gitQuickMenu.showInEditorTitle": {
           "type": "boolean",
           "default": true,
-          "description": "Show the Git submenu in the editor title bar."
+          "description": "%config.showInEditorTitle%"
         },
         "gitQuickMenu.showInSourceControl": {
           "type": "boolean",
           "default": true,
-          "description": "Show the Git submenu in the Source Control view title."
+          "description": "%config.showInSourceControl%"
+        },
+        "gitQuickMenu.commitAfterMerge": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.commitAfterMerge%"
         },
         "gitQuickMenu.logMaxEntries": {
           "type": "number",
           "default": 100,
           "minimum": 1,
-          "description": "Maximum number of commits listed by the Git Log command."
+          "description": "%config.logMaxEntries%"
         }
       }
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
+    "vscode:uninstall": "node ./out/uninstall.js",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package --no-dependencies --allow-missing-repository"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.2.0",
     "typescript": "^5.6.0"
-  }
+  },
+  "l10n": "./l10n"
 }

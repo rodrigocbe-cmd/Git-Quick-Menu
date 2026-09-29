@@ -85,17 +85,39 @@ do Visual Studio.
 - `contributes.menus`
 - `menubar/main` (ver a pendência abaixo)
 
-### ✅ Decisão: `menubar/main` não é suportado
+### ✅ Decisão: `menubar/main` não existe; menu superior via patch
 
 **`menubar/main` não é um ponto de contribuição público** do VS Code: o
 menu principal do app desktop é fechado para extensões (existe apenas a
-proposta `menuBar/home`, restrita ao VS Code Web). Por isso o projeto
-foi criado como **Git Quick Menu** (ID `git-quick-menu`, prefixo
-`gitQuickMenu.*`, categoria "Git Menu" para não colidir com os comandos
-"Git:" nativos), usando as alternativas suportadas abaixo, todas
-implementadas.
+proposta `menuBar/home`, restrita ao VS Code Web). O projeto se chama
+**Git Quick Menu** (ID `git-quick-menu`, prefixo `gitQuickMenu.*`,
+categoria "Git Menu" para não colidir com os comandos "Git:" nativos).
 
-Alternativas suportadas para o submenu "Git":
+**Menu "Git" na barra superior (desejado pelo usuário):** implementado
+como opção (`gitQuickMenu.mainMenuBar`, comandos
+`gitQuickMenu.enableMainMenuBar` / `disableMainMenuBar`) que faz patch
+em `<appRoot>/out/vs/workbench/workbench.desktop.main.js`: insere, antes
+do registro do menu Help, um
+`appendMenuItem(MenuId.MenubarMainMenu, { submenu: MenuId.for("api:gitQuickMenu.menu"), title: "Git", order: 7.5 })`
+entre marcadores `/*gitQuickMenu:start*/…/*gitQuickMenu:end*/`, e
+atualiza o checksum em `product.json`. Submenus de extensões são
+registrados internamente como `MenuId.for("api:<id>")`. A barra de menus
+ignora submenus vazios no momento em que é montada, e os itens da
+extensão só chegam depois; por isso o patch também registra um item
+provisório no submenu, com `when: !gitQuickMenu.active` (a extensão liga
+essa context key ao ativar). Um segundo bloco é injetado no renderizador
+de itens de menu (logo após a criação de `span.menu-item-check`): para
+os comandos em `globalThis.gitQuickMenuIcons` (mapa id → codicon, gerado
+a partir do `icon` de cada comando no `package.json`), a coluna do check
+passa a mostrar o ícone, como no Visual Studio (o VS Code não desenha
+ícones em menus). O status compara o arquivo com o patch esperado, então
+qualquer mudança no código injetado ou nos ícones reaplica o patch
+automaticamente. Atualizações do
+VS Code apagam o patch; a extensão reaplica na inicialização. O hook
+`vscode:uninstall` remove o patch. Código em `src/menubarPatch.ts`
+(sem dependência de `vscode`) e `src/menubar.ts`.
+
+Alternativas suportadas para o submenu "Git" (também implementadas):
 
 - barra de título do editor (`editor/title`);
 - item na Status Bar que abre um Quick Pick com as operações;
@@ -159,6 +181,28 @@ Git, habilitando ou desabilitando os itens com `when` clauses.
 
 - Linguagem: **TypeScript**, no padrão de desenvolvimento de extensões
   do VS Code.
+- **Idiomas:** inglês (padrão) e pt-BR, seguindo o idioma do VS Code.
+  Todo texto visível no código passa por `vscode.l10n.t('English text', ...args)`
+  (com `{0}` para variáveis; codicons `$(icon)` ficam fora do texto
+  traduzido), com tradução em `l10n/bundle.l10n.pt-br.json`. Textos do
+  `package.json` usam `%chave%`, definidas em `package.nls.json` e
+  `package.nls.pt-br.json`. Botões de diálogos são comparados com o texto
+  traduzido (guarde o `l10n.t` numa variável). Ao adicionar ou mudar um
+  texto, atualize os arquivos de tradução.
+- **Settings** abre um webview (`src/settingsPanel.ts` + `media/settings.js`
+  / `settings.css`) inspirado nas "Git Settings" do Visual Studio: opções
+  do VS Code/extensão, git config global e do repositório (com o valor
+  global herdado como dica) e tabela de remotos. As seções e campos são
+  definidos em `schema()` no TypeScript; o script da página só renderiza e
+  devolve mensagens (valores via `textContent`, CSP com nonce).
+- **Commit**, **Commit & Push** e **Commit or Stash** abrem o webview
+  "Git Changes" (`src/commitPanel.ts` + `media/commit.js` / `commit.css`),
+  como a janela do Visual Studio: mensagem com várias linhas (resumo +
+  descrição), autor efetivo (`git config user.name/email` no repositório,
+  com link para Settings), amend, alterações preparadas e não preparadas
+  (clique abre o diff; +/− prepara/remove) e Stash All. O rascunho é
+  compartilhado com a caixa de mensagem da view de SCM. A caixa de texto é
+  criada uma vez e nunca re-renderizada, para não perder o que foi digitado.
 - Não é preciso implementar o Git do zero. A extensão pode:
   - executar comandos Git (`git branch`, `git checkout`, `git commit`,
     `git push` etc.);

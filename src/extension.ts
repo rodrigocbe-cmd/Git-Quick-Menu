@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { registerCommands } from './commands';
 import { GitService } from './gitService';
 import { showMenu } from './menu';
+import { registerMainMenuBar } from './menubar';
+import { checkRequirements } from './requirements';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     const git = new GitService();
@@ -13,7 +15,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
     statusBarItem.name = 'Git Quick Menu';
     statusBarItem.text = '$(source-control) Git';
-    statusBarItem.tooltip = 'Open the Git menu (Ctrl+Alt+G)';
+    statusBarItem.tooltip = vscode.l10n.t('Open the Git menu (Ctrl+Alt+G)');
     statusBarItem.command = 'gitQuickMenu.showMenu';
 
     const refresh = () => {
@@ -30,6 +32,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     };
 
     registerCommands(context, git);
+    registerMainMenuBar(context);
     context.subscriptions.push(
         git,
         statusBarItem,
@@ -43,6 +46,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
 
     refresh();
+    checkRequirements(context);
     await git.initialize();
 }
 
