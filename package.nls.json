@@ -1,6 +1,6 @@
 {
   "displayName": "Git Quick Menu",
-  "description": "Adds a Visual Studio-style Git menu to VS Code (status bar, editor title and Source Control view).",
+  "description": "A Git menu for VS Code, with the common Git operations grouped in one place.",
   "command.showMenu": "Show Git Menu",
   "category": "Git Menu",
   "command.newBranch": "New Branch...",
