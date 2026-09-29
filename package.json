@@ -1,0 +1,213 @@
+{
+  "name": "git-quick-menu",
+  "displayName": "Git Quick Menu",
+  "description": "Adds a Visual Studio-style Git menu to VS Code (status bar, editor title and Source Control view).",
+  "version": "0.1.0",
+  "publisher": "rodrigo-bechara",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "git",
+    "menu",
+    "branch",
+    "commit",
+    "push",
+    "pull"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitQuickMenu.showMenu",
+        "title": "Show Git Menu",
+        "category": "Git Menu",
+        "icon": "$(source-control)"
+      },
+      {
+        "command": "gitQuickMenu.newBranch",
+        "title": "New Branch...",
+        "category": "Git Menu",
+        "icon": "$(git-branch-create)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.checkout",
+        "title": "Checkout...",
+        "category": "Git Menu",
+        "icon": "$(git-branch)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.commit",
+        "title": "Commit",
+        "category": "Git Menu",
+        "icon": "$(check)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.commitAndPush",
+        "title": "Commit & Push",
+        "category": "Git Menu",
+        "icon": "$(check-all)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.pull",
+        "title": "Pull",
+        "category": "Git Menu",
+        "icon": "$(arrow-down)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.push",
+        "title": "Push",
+        "category": "Git Menu",
+        "icon": "$(arrow-up)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.fetch",
+        "title": "Fetch",
+        "category": "Git Menu",
+        "icon": "$(cloud-download)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.sync",
+        "title": "Sync (Pull then Push)",
+        "category": "Git Menu",
+        "icon": "$(sync)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.manageBranches",
+        "title": "Manage Branches...",
+        "category": "Git Menu",
+        "icon": "$(list-tree)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.manageRemotes",
+        "title": "Manage Remotes...",
+        "category": "Git Menu",
+        "icon": "$(remote)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.stash",
+        "title": "Stash...",
+        "category": "Git Menu",
+        "icon": "$(archive)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.log",
+        "title": "Git Log",
+        "category": "Git Menu",
+        "icon": "$(history)",
+        "enablement": "gitQuickMenu.hasRepository"
+      },
+      {
+        "command": "gitQuickMenu.settings",
+        "title": "Git Settings...",
+        "category": "Git Menu",
+        "icon": "$(settings-gear)"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "gitQuickMenu.menu",
+        "label": "Git",
+        "icon": "$(source-control)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "submenu": "gitQuickMenu.menu",
+          "group": "navigation@100",
+          "when": "gitQuickMenu.hasRepository && config.gitQuickMenu.showInEditorTitle"
+        }
+      ],
+      "scm/title": [
+        {
+          "submenu": "gitQuickMenu.menu",
+          "group": "navigation@100",
+          "when": "scmProvider == git && config.gitQuickMenu.showInSourceControl"
+        }
+      ],
+      "gitQuickMenu.menu": [
+        { "command": "gitQuickMenu.newBranch", "group": "1_branch@1" },
+        { "command": "gitQuickMenu.checkout", "group": "1_branch@2" },
+        { "command": "gitQuickMenu.commit", "group": "2_commit@1" },
+        { "command": "gitQuickMenu.commitAndPush", "group": "2_commit@2" },
+        { "command": "gitQuickMenu.pull", "group": "3_remote@1" },
+        { "command": "gitQuickMenu.push", "group": "3_remote@2" },
+        { "command": "gitQuickMenu.fetch", "group": "3_remote@3" },
+        { "command": "gitQuickMenu.sync", "group": "3_remote@4" },
+        { "command": "gitQuickMenu.manageBranches", "group": "4_manage@1" },
+        { "command": "gitQuickMenu.manageRemotes", "group": "4_manage@2" },
+        { "command": "gitQuickMenu.stash", "group": "4_manage@3" },
+        { "command": "gitQuickMenu.log", "group": "4_manage@4" },
+        { "command": "gitQuickMenu.settings", "group": "5_settings@1" }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "gitQuickMenu.showMenu",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g"
+      }
+    ],
+    "configuration": {
+      "title": "Git Quick Menu",
+      "properties": {
+        "gitQuickMenu.showStatusBarItem": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a \"Git\" item in the status bar that opens the Git menu."
+        },
+        "gitQuickMenu.showInEditorTitle": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the Git submenu in the editor title bar."
+        },
+        "gitQuickMenu.showInSourceControl": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the Git submenu in the Source Control view title."
+        },
+        "gitQuickMenu.logMaxEntries": {
+          "type": "number",
+          "default": 100,
+          "minimum": 1,
+          "description": "Maximum number of commits listed by the Git Log command."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.2.0",
+    "typescript": "^5.6.0"
+  }
+}
